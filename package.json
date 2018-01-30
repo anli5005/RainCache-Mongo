@@ -5,6 +5,8 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc --outDir lib",
+    "build:test": "npm run build && npm test",
+    "build:watch": "tsc --outDir lib -w",
     "test": "mocha"
   },
   "repository": {
@@ -18,6 +20,7 @@
   },
   "homepage": "https://github.com/anli5005/RainCache-Mongo#readme",
   "devDependencies": {
-    "mocha": "^5.0.0"
+    "mocha": "^5.0.0",
+    "typescript": "^2.6.2"
   }
 }
