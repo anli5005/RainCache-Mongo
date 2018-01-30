@@ -4,9 +4,9 @@
   "description": "Brings MongoDB support to RainCache!",
   "main": "lib/index.js",
   "scripts": {
-    "build": "tsc --outDir lib",
+    "build": "tsc",
     "build:test": "npm run build && npm test",
-    "build:watch": "tsc --outDir lib -w",
+    "build:watch": "tsc -w",
     "test": "mocha"
   },
   "repository": {
