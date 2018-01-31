@@ -1,5 +1,5 @@
 import { MongoCollection } from './mongo.collection';
 
-export interface MongoClient {
+export interface MongoDB {
   collection<T>(name: string): MongoCollection<T>;
 }

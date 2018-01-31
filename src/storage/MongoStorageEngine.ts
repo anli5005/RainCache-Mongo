@@ -2,17 +2,17 @@ import { KeyValuePair } from '../interfaces/keyvaluepair';
 import { ListItem } from '../interfaces/listitem';
 
 import { MongoCollection } from '../interfaces/mongo.collection';
-import { MongoClient } from '../interfaces/mongo.client';
+import { MongoDB } from '../interfaces/mongo.db';
 
 export interface MongoStorageEngineOptions {
-  client: MongoClient;
+  db: MongoDB;
   collectionNames?: {kv?: string, list?: string};
 }
 
 export class MongoStorageEngine {
   options: MongoStorageEngineOptions = null;
 
-  client: MongoClient = null;
+  db: MongoDB = null;
   kvCollection: MongoCollection<KeyValuePair> = null;
   listCollection: MongoCollection<ListItem> = null;
 
@@ -21,21 +21,21 @@ export class MongoStorageEngine {
   }
 
   async initialize() {
-    this.client = this.options.client;
+    this.db = this.options.db;
     const collectionNames = this.options.collectionNames || {};
-    this.kvCollection = this.client.collection(collectionNames.kv || "raincache");
-    this.listCollection = this.client.collection(collectionNames.list || "raincachelists");
+    this.kvCollection = this.db.collection(collectionNames.kv || "raincache");
+    this.listCollection = this.db.collection(collectionNames.list || "raincachelists");
 
     // TODO: Create indices
   }
 
   async get(id: string, useHash: boolean): Promise<any> {
     let pair = await this.kvCollection.findOne({key: id});
-    if (pair.list) {
+    if (pair && pair.list) {
       throw new Error("Requested object is a list");
     }
 
-    return pair.value;
+    return pair && pair.value;
   }
 
   async upsert(id: string, updateData: any, useHash: boolean) {
@@ -46,7 +46,7 @@ export class MongoStorageEngine {
         throw new Error("Requested object is a list");
       }
 
-      let value = pair.value ? Object.assign(pair.value, updateData) : updateData;
+      let value = (!pair.value || typeof pair.value === "string" || typeof pair.value === "number" || typeof pair.value === "boolean") ? updateData : Object.assign(pair.value, updateData);
       this.kvCollection.updateOne({_id: pair._id}, {$set: {value: value}});
     } else {
       // Insert the data.
