@@ -126,7 +126,7 @@ export class MongoStorageEngine {
     });
   }
 
-  async addToList(listId: string, ids: string | string[]) {
+  async addToList(listId: string, ids: any) {
     let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
     if (pair && !pair.list) {
       throw new Error("Requested object is not a list");
@@ -139,7 +139,7 @@ export class MongoStorageEngine {
       pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1}});
     }
 
-    let toAdd: string[] = typeof ids === 'string' ? [ids] : ids;
+    let toAdd: string[] = ids instanceof Array ? ids : [ids];
     await this.listCollection.insertMany(toAdd.map((value: any): ListItem => {
       return {listID: pair._id, value: value};
     }));
@@ -155,7 +155,7 @@ export class MongoStorageEngine {
     }
 
     let count = await this.listCollection.count({listID: pair._id, value: id});
-    return count === 1;
+    return !!count;
   }
 
   async removeFromList(listId: string, id: any) {
@@ -170,7 +170,7 @@ export class MongoStorageEngine {
     await this.listCollection.remove({listID: pair._id, value: id});
   }
 
-  async removeList(listId: string, id: any) {
+  async removeList(listId: string) {
     let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
@@ -179,7 +179,7 @@ export class MongoStorageEngine {
       throw new Error("Requested object is not a list");
     }
 
-    await this.listCollection.remove({listID: pair._id, value: id});
+    await this.listCollection.remove({listID: pair._id});
     await this.kvCollection.remove({_id: pair._id});
   }
 
