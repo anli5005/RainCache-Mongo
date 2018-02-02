@@ -149,8 +149,12 @@ describe("MongoStorageEngine", () => {
         await storageEngine.addToList("test.lists.greetings", "Hello, universe!");
       });
 
+      it("should multiple items to an existing list", async () => {
+        await storageEngine.addToList("test.lists.greetings", ["Hello there!", "Hello, universe!", "Hello, universe!"]);
+      });
+
       it("should be able to create multiple lists", async () => {
-        await storageEngine.addToList("test.lists.otherlist", 1234);
+        await storageEngine.addToList("test.lists.otherlist", "1234");
       });
     });
 
@@ -161,12 +165,12 @@ describe("MongoStorageEngine", () => {
       });
 
       it("should tell whether 1234 is part of the list", async () => {
-        let result = await storageEngine.isListMember("test.lists.greetings", 1234);
+        let result = await storageEngine.isListMember("test.lists.greetings", "1234");
         result.should.not.be.true();
       });
 
       it("should handle multiple lists", async () => {
-        let result = await storageEngine.isListMember("test.lists.otherlist", 1234);
+        let result = await storageEngine.isListMember("test.lists.otherlist", "1234");
         result.should.be.true();
       });
     });
@@ -174,7 +178,7 @@ describe("MongoStorageEngine", () => {
     describe("getListMembers", () => {
       it("should get members of a list", async () => {
         let members = await storageEngine.getListMembers("test.lists.greetings");
-        members.length.should.equal(2);
+        members.length.should.equal(3);
         members[0].should.equal("Hello, world!");
         members[1].should.equal("Hello, universe!");
       });
@@ -182,14 +186,14 @@ describe("MongoStorageEngine", () => {
       it("should handle multiple lists", async () => {
         let members = await storageEngine.getListMembers("test.lists.otherlist");
         members.length.should.be.above(0);
-        members[0].should.equal(1234);
+        members[0].should.equal("1234");
       });
     });
 
     describe("getListCount", () => {
       it("should count members in a list", async () => {
         let count = await storageEngine.getListCount("test.lists.greetings");
-        count.should.equal(2);
+        count.should.equal(3);
       });
     });
 

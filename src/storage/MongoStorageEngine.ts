@@ -126,7 +126,7 @@ export class MongoStorageEngine {
     });
   }
 
-  async addToList(listId: string, ids: any) {
+  async addToList(listId: string, ids: string | string[]) {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (pair && !pair.list) {
       throw new Error("Requested object is not a list");
@@ -140,12 +140,26 @@ export class MongoStorageEngine {
     }
 
     let toAdd: string[] = ids instanceof Array ? ids : [ids];
-    await this.listCollection.insertMany(toAdd.map((value: any): ListItem => {
+
+    let inList = {};
+    let duplicates = await this.listCollection.find({listID: pair._id, value: {$in: toAdd}}).toArray();
+    duplicates.forEach((duplicate) => {
+      inList[duplicate.value] = true;
+    });
+
+    await this.listCollection.insertMany(toAdd.filter((value) => {
+      if (inList[value]) {
+        return false;
+      } else {
+        inList[value] = true;
+        return true;
+      }
+    }).map((value: any): ListItem => {
       return {listID: pair._id, value: value};
     }));
   }
 
-  async isListMember(listId: string, id: any): Promise<boolean> {
+  async isListMember(listId: string, id: string): Promise<boolean> {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
@@ -158,7 +172,7 @@ export class MongoStorageEngine {
     return !!count;
   }
 
-  async removeFromList(listId: string, id: any) {
+  async removeFromList(listId: string, id: string) {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
