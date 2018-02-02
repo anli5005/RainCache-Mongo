@@ -39,7 +39,7 @@ export class MongoStorageEngine {
   }
 
   async upsert(id: string, updateData: any, useHash: boolean) {
-    let pair = await this.kvCollection.findOne({key: id}, {projection: {_id: 1, list: 1, value: 1}});
+    let pair = await this.kvCollection.findOne({key: id}, {fields: {_id: 1, list: 1, value: 1}});
     if (pair) {
       // Update the data.
       if (pair.list) {
@@ -112,7 +112,7 @@ export class MongoStorageEngine {
   }
 
   async getListMembers(listId: string): Promise<any[]> {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
     }
@@ -127,7 +127,7 @@ export class MongoStorageEngine {
   }
 
   async addToList(listId: string, ids: any) {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (pair && !pair.list) {
       throw new Error("Requested object is not a list");
     }
@@ -136,7 +136,7 @@ export class MongoStorageEngine {
       await this.kvCollection.insertOne({key: listId, list: true, value: null, namespaces: listId.split(".").map((component: string, index: number, array: string[]): string => {
         return array.slice(0, index).join(".");
       })});
-      pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1}});
+      pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1}});
     }
 
     let toAdd: string[] = ids instanceof Array ? ids : [ids];
@@ -146,7 +146,7 @@ export class MongoStorageEngine {
   }
 
   async isListMember(listId: string, id: any): Promise<boolean> {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
     }
@@ -159,7 +159,7 @@ export class MongoStorageEngine {
   }
 
   async removeFromList(listId: string, id: any) {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
     }
@@ -171,7 +171,7 @@ export class MongoStorageEngine {
   }
 
   async removeList(listId: string) {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
     }
@@ -184,7 +184,7 @@ export class MongoStorageEngine {
   }
 
   async getListCount(listId: string): Promise<number> {
-    let pair = await this.kvCollection.findOne({key: listId}, {projection: {_id: 1, list: 1}});
+    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
       throw new Error("Requested object not found");
     }
