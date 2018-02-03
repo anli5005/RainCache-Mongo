@@ -114,7 +114,7 @@ export class MongoStorageEngine {
   async getListMembers(listId: string): Promise<any[]> {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
-      throw new Error("Requested object not found");
+      return [];
     }
     if (!pair.list) {
       throw new Error("Requested object is not a list");
@@ -162,7 +162,7 @@ export class MongoStorageEngine {
   async isListMember(listId: string, id: string): Promise<boolean> {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
-      throw new Error("Requested object not found");
+      return false;
     }
     if (!pair.list) {
       throw new Error("Requested object is not a list");
@@ -175,19 +175,20 @@ export class MongoStorageEngine {
   async removeFromList(listId: string, id: string) {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
-      throw new Error("Requested object not found");
+      return false;
     }
     if (!pair.list) {
       throw new Error("Requested object is not a list");
     }
 
     await this.listCollection.remove({listID: pair._id, value: id});
+    return true;
   }
 
   async removeList(listId: string) {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
-      throw new Error("Requested object not found");
+      return false;
     }
     if (!pair.list) {
       throw new Error("Requested object is not a list");
@@ -195,12 +196,13 @@ export class MongoStorageEngine {
 
     await this.listCollection.remove({listID: pair._id});
     await this.kvCollection.remove({_id: pair._id});
+    return true;
   }
 
   async getListCount(listId: string): Promise<number> {
     let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
     if (!pair) {
-      throw new Error("Requested object not found");
+      return 0;
     }
     if (!pair.list) {
       throw new Error("Requested object is not a list");
