@@ -143,6 +143,11 @@ export class MongoStorageEngine {
 
     let inList = {};
     let duplicates = await this.listCollection.find({listID: pair._id, value: {$in: toAdd}}).toArray();
+
+    if (duplicates.length === toAdd.length) {
+      return;
+    }
+
     duplicates.forEach((duplicate) => {
       inList[duplicate.value] = true;
     });

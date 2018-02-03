@@ -1,6 +1,6 @@
 {
   "name": "raincache-mongo",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Brings MongoDB support to RainCache!",
   "main": "lib/index.js",
   "scripts": {
