@@ -79,7 +79,7 @@ export class MongoStorageEngine {
 			query.ids = { $in: ids };
 		}
 
-		let cursor = await this.kvCollection.find(query);
+		let cursor = await this.collections[namespace].find(query);
 		let result = [];
 		while (await cursor.hasNext()) {
 			let pair = await cursor.next();
@@ -92,15 +92,13 @@ export class MongoStorageEngine {
 		return result;
 	}
 
-	async find(fn: (value: any) => boolean, param1: string[] | string, param2?: string): Promise<any> {
+	async find(fn: (value: any) => boolean, id: string[] | string, namespace: string): Promise<any> {
 		let ids: string[] = null;
-		let namespace: string;
 
-		if (typeof param1 === 'string' && !param2) {
-			namespace = param1;
+		if (typeof id === 'string') {
+			ids.push(id);
 		} else {
-			ids = param1 as string[];
-			namespace = param2;
+			ids = id;
 		}
 
 		let query: { [index: string]: any } = { namespaces: namespace, list: false };
@@ -108,7 +106,7 @@ export class MongoStorageEngine {
 			query.ids = { $in: ids };
 		}
 
-		let cursor = this.kvCollection.find(query);
+		let cursor = this.collections[namespace].find(query);
 		let result: any;
 		while (await cursor.hasNext()) {
 			let pair = await cursor.next();
