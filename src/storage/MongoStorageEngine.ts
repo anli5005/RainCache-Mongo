@@ -3,216 +3,242 @@ import { ListItem } from '../interfaces/listitem';
 
 import { MongoCollection } from '../interfaces/mongo.collection';
 import { MongoDB } from '../interfaces/mongo.db';
+import { Parsed } from '../interfaces/parsed';
+import { collections } from './collections';
 
 export interface MongoStorageEngineOptions {
-  db: MongoDB;
-  collectionNames?: {kv?: string, list?: string};
+	db: MongoDB;
+	collectionNames?: { kv?: string, list?: string };
 }
 
 export class MongoStorageEngine {
-  options: MongoStorageEngineOptions = null;
+	options: MongoStorageEngineOptions = null;
 
-  db: MongoDB = null;
-  kvCollection: MongoCollection<KeyValuePair> = null;
-  listCollection: MongoCollection<ListItem> = null;
+	db: MongoDB = null;
+	listCollection: MongoCollection<ListItem> = null;
+	collections: Object = {};
 
-  constructor(options: MongoStorageEngineOptions) {
-    this.options = options;
-  }
+	constructor(options: MongoStorageEngineOptions) {
+		this.options = options;
+	}
 
-  async initialize() {
-    this.db = this.options.db;
-    const collectionNames = this.options.collectionNames || {};
-    this.kvCollection = this.db.collection(collectionNames.kv || "raincache");
-    this.listCollection = this.db.collection(collectionNames.list || "raincachelists");
+	async initialize() {
+		this.db = this.options.db;
+		this.listCollection = this.db.collection('raincachelists');
 
-    // TODO: Create indices
-  }
+		collections.forEach(collection => {
+			this.collections[`${collection}`] = this.db.collection(`raincache-${collection}`);
+		});
 
-  async get(id: string, useHash: boolean): Promise<any> {
-    let pair = await this.kvCollection.findOne({key: id});
-    if (pair && pair.list) {
-      throw new Error("Requested object is a list");
-    }
+		// TODO: Create indices
+	}
 
-    return pair && pair.value;
-  }
+	async get(id: string): Promise<any> {
+		let parsed = this.parseID(id);
+		let pair = await this.collections[parsed.collection].findOne({ key: id });
+		if (pair && pair.list) {
+			throw new Error('Requested object is a list');
+		}
 
-  async upsert(id: string, updateData: any, useHash: boolean) {
-    let pair = await this.kvCollection.findOne({key: id}, {fields: {_id: 1, list: 1, value: 1}});
-    if (pair) {
-      // Update the data.
-      if (pair.list) {
-        throw new Error("Requested object is a list");
-      }
+		return pair && pair.value;
+	}
 
-      let value = (!pair.value || typeof pair.value === "string" || typeof pair.value === "number" || typeof pair.value === "boolean") ? updateData : Object.assign(pair.value, updateData);
-      this.kvCollection.updateOne({_id: pair._id}, {$set: {value: value}});
-    } else {
-      // Insert the data.
-      let toInsert: KeyValuePair = {key: id, value: updateData, list: false, namespaces: []};
-      toInsert.namespaces = id.split(".").map((component: string, index: number, array: string[]): string => {
-        return array.slice(0, index).join(".");
-      });
-      await this.kvCollection.insertOne(toInsert);
-    }
-  }
+	async upsert(id: string, updateData: any, useHash: boolean) {
+		let parsed = this.parseID(id);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1, value: 1 } });
+		if (pair) {
+			// Update the data.
+			if (pair.list) {
+				throw new Error('Requested object is a list');
+			}
 
-  async remove(id: string, useHash: boolean) {
-    await this.kvCollection.remove({key: id});
-  }
+			let value = (!pair.value || typeof pair.value === 'string' || typeof pair.value === 'number' || typeof pair.value === 'boolean') ? updateData : Object.assign(pair.value, updateData);
+			this.collections[parsed.collection].updateOne({ _id: pair._id }, { $set: { value: value } });
+		} else {
+			// Insert the data.
+			let toInsert: KeyValuePair = { key: parsed.key, value: updateData, list: false, namespaces: [] };
+			let namespaces = id.split(".");
 
-  async filter(fn: (value: any) => boolean, ids: string[], namespace: string): Promise<any[]> {
-    let query: {[index: string]: any} = {namespaces: namespace, list: false};
-    if (ids) {
-      query.ids = {$in: ids};
-    }
+			namespaces.slice(1).map((component, index) => {
+				return namespaces.slice(0, index).join('.');
+			});
 
-    let cursor = await this.kvCollection.find(query);
-    let result = [];
-    while (await cursor.hasNext()) {
-      let pair = await cursor.next();
-      if (fn(pair.value)) {
-        result.push(pair.value);
-      }
-    }
+			toInsert.namespaces = namespaces;
+			await this.collections[parsed.collection].insertOne(toInsert);
+		}
+	}
 
-    await cursor.close();
-    return result;
-  }
+	async remove(id: string, useHash: boolean) {
+		let parsed = this.parseID(id);
+		await this.collections[parsed.collection].remove({ key: id });
+	}
 
-  async find(fn: (value: any) => boolean, param1: string[] | string, param2?: string): Promise<any> {
-    let ids: string[] = null;
-    let namespace: string;
+	async filter(fn: (value: any) => boolean, ids: string[], namespace: string): Promise<any[]> {
+		let query: { [index: string]: any } = { namespaces: namespace, list: false };
+		if (ids) {
+			query.ids = { $in: ids };
+		}
 
-    if (typeof param1 === "string" && !param2) {
-      namespace = param1;
-    } else {
-      ids = param1 as string[];
-      namespace = param2;
-    }
+		let cursor = await this.kvCollection.find(query);
+		let result = [];
+		while (await cursor.hasNext()) {
+			let pair = await cursor.next();
+			if (fn(pair.value)) {
+				result.push(pair.value);
+			}
+		}
 
-    let query: {[index: string]: any} = {namespaces: namespace, list: false};
-    if (ids) {
-      query.ids = {$in: ids};
-    }
+		await cursor.close();
+		return result;
+	}
 
-    let cursor = this.kvCollection.find(query);
-    let result: any;
-    while (await cursor.hasNext()) {
-      let pair = await cursor.next();
-      if (fn(pair.value)) {
-        result = pair.value;
-        break;
-      }
-    }
+	async find(fn: (value: any) => boolean, param1: string[] | string, param2?: string): Promise<any> {
+		let ids: string[] = null;
+		let namespace: string;
 
-    await cursor.close();
-    return result;
-  }
+		if (typeof param1 === 'string' && !param2) {
+			namespace = param1;
+		} else {
+			ids = param1 as string[];
+			namespace = param2;
+		}
 
-  async getListMembers(listId: string): Promise<any[]> {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (!pair) {
-      return [];
-    }
-    if (!pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		let query: { [index: string]: any } = { namespaces: namespace, list: false };
+		if (ids) {
+			query.ids = { $in: ids };
+		}
 
-    let members = await this.listCollection.find({listID: pair._id}).toArray();
-    return members.map((member: ListItem) => {
-      return member.value;
-    });
-  }
+		let cursor = this.kvCollection.find(query);
+		let result: any;
+		while (await cursor.hasNext()) {
+			let pair = await cursor.next();
+			if (fn(pair.value)) {
+				result = pair.value;
+				break;
+			}
+		}
 
-  async addToList(listId: string, ids: string | string[]) {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (pair && !pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		await cursor.close();
+		return result;
+	}
 
-    if (!pair) {
-      await this.kvCollection.insertOne({key: listId, list: true, value: null, namespaces: listId.split(".").map((component: string, index: number, array: string[]): string => {
-        return array.slice(0, index).join(".");
-      })});
-      pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1}});
-    }
+	async getListMembers(listId: string): Promise<any[]> {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (!pair) {
+			return [];
+		}
+		if (!pair.list) {
+			throw new Error('Requested object is not a list');
+		}
 
-    let toAdd: string[] = ids instanceof Array ? ids : [ids];
+		let members = await this.listCollection.find({ listID: pair._id }).toArray();
+		return members.map((member: ListItem) => {
+			return member.value;
+		});
+	}
 
-    let inList = {};
-    let duplicates = await this.listCollection.find({listID: pair._id, value: {$in: toAdd}}).toArray();
+	async addToList(listId: string, ids: string | string[]) {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (pair && !pair.list) {
+			throw new Error('Requested object is not a list');
+		}
 
-    if (duplicates.length === toAdd.length) {
-      return;
-    }
+		if (!pair) {
+			pair = await this.collections[parsed.collection].insertOne({
+				key: parsed.key, list: true, value: null, namespaces: listId.split('.').slice(1).map((component: string, index: number, array: string[]): string => {
+					return array.slice(0, index).join('.');
+				})
+			});
+		}
 
-    duplicates.forEach((duplicate) => {
-      inList[duplicate.value] = true;
-    });
+		let toAdd: string[] = ids instanceof Array ? ids : [ids];
 
-    await this.listCollection.insertMany(toAdd.filter((value) => {
-      if (inList[value]) {
-        return false;
-      } else {
-        inList[value] = true;
-        return true;
-      }
-    }).map((value: any): ListItem => {
-      return {listID: pair._id, value: value};
-    }));
-  }
+		let inList = {};
+		let duplicates = await this.listCollection.find({ listID: pair._id, value: { $in: toAdd } }).toArray();
 
-  async isListMember(listId: string, id: string): Promise<boolean> {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (!pair) {
-      return false;
-    }
-    if (!pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		if (duplicates.length === toAdd.length) {
+			return;
+		}
 
-    let count = await this.listCollection.count({listID: pair._id, value: id});
-    return !!count;
-  }
+		duplicates.forEach((duplicate) => {
+			inList[duplicate.value] = true;
+		});
 
-  async removeFromList(listId: string, id: string) {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (!pair) {
-      return false;
-    }
-    if (!pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		await this.listCollection.insertMany(toAdd.filter((value) => {
+			if (inList[value]) {
+				return false;
+			} else {
+				inList[value] = true;
+				return true;
+			}
+		}).map((value: any): ListItem => {
+			return { listID: pair._id, value: value };
+		}));
+	}
 
-    await this.listCollection.remove({listID: pair._id, value: id});
-    return true;
-  }
+	async isListMember(listId: string, id: string): Promise<boolean> {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (!pair) {
+			return false;
+		}
+		if (!pair.list) {
+			throw new Error('Requested object is not a list');
+		}
 
-  async removeList(listId: string) {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (!pair) {
-      return false;
-    }
-    if (!pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		let count = await this.listCollection.count({ listID: pair._id, value: id });
+		return !!count;
+	}
 
-    await this.listCollection.remove({listID: pair._id});
-    await this.kvCollection.remove({_id: pair._id});
-    return true;
-  }
+	async removeFromList(listId: string, id: string) {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (!pair) {
+			return false;
+		}
+		if (!pair.list) {
+			throw new Error('Requested object is not a list');
+		}
 
-  async getListCount(listId: string): Promise<number> {
-    let pair = await this.kvCollection.findOne({key: listId}, {fields: {_id: 1, list: 1}});
-    if (!pair) {
-      return 0;
-    }
-    if (!pair.list) {
-      throw new Error("Requested object is not a list");
-    }
+		await this.listCollection.remove({ listID: pair._id, value: id });
+		return true;
+	}
 
-    return await this.listCollection.count({listID: pair._id});
-  }
+	async removeList(listId: string) {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (!pair) {
+			return false;
+		}
+		if (!pair.list) {
+			throw new Error('Requested object is not a list');
+		}
+
+		await this.listCollection.remove({ listID: pair._id });
+		await this.collections[parsed.collection].remove({ _id: pair._id });
+		return true;
+	}
+
+	async getListCount(listId: string): Promise<number> {
+		let parsed = this.parseID(listId);
+		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		if (!pair) {
+			return 0;
+		}
+		if (!pair.list) {
+			throw new Error('Requested object is not a list');
+		}
+
+		return await this.listCollection.count({ listID: pair._id });
+	}
+
+	parseID(id): Parsed {
+		let parsed = id.split('.');
+		let collection = parsed[0];
+		parsed.splice(0, 1);
+		let key = parsed.join('.');
+		return { collection, key };
+	}
 }
