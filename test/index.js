@@ -86,7 +86,7 @@ describe("MongoStorageEngine", () => {
   describe("filter", () => {
     it("should filter out all strings in namespace test", async () => {
       let values = await storageEngine.filter((value) => {
-        return typeof value !== "string";
+        return typeof value !== "string" && !(value instanceof String);
       }, null, "test");
 
       values.length.should.equal(1);

@@ -59,11 +59,10 @@ export class MongoStorageEngine {
 			let toInsert: KeyValuePair = { key: id, value: updateData, list: false, namespaces: [] };
 			let namespaces = id.split(".");
 
-			namespaces.slice(1).map((component, index) => {
+			toInsert.namespaces = namespaces.map((component, index) => {
 				return namespaces.slice(0, index).join('.');
 			});
 
-			toInsert.namespaces = namespaces;
 			await this.collections[parsed.collection].insertOne(toInsert);
 		}
 	}
@@ -79,7 +78,7 @@ export class MongoStorageEngine {
 			query.ids = { $in: ids };
 		}
 
-		let cursor = await this.collections[namespace].find(query);
+		let cursor = await this.collections[namespace.split(".")[0]].find(query);
 		let result = [];
 		while (await cursor.hasNext()) {
 			let pair = await cursor.next();
@@ -92,13 +91,15 @@ export class MongoStorageEngine {
 		return result;
 	}
 
-	async find(fn: (value: any) => boolean, id: string[] | string, namespace: string): Promise<any> {
+	async find(fn: (value: any) => boolean, param1: string[] | string, param2?: string): Promise<any> {
 		let ids: string[] = null;
+		let namespace: string;
 
-		if (typeof id === 'string') {
-			ids.push(id);
+		if (typeof param1 === 'string' && !param2) {
+			namespace = param1;
 		} else {
-			ids = id;
+			ids = param1 as string[];
+			namespace = param2;
 		}
 
 		let query: { [index: string]: any } = { namespaces: namespace, list: false };
@@ -106,7 +107,7 @@ export class MongoStorageEngine {
 			query.ids = { $in: ids };
 		}
 
-		let cursor = this.collections[namespace].find(query);
+		let cursor = this.collections[namespace.split(".")[0]].find(query);
 		let result: any;
 		while (await cursor.hasNext()) {
 			let pair = await cursor.next();
@@ -138,14 +139,14 @@ export class MongoStorageEngine {
 
 	async addToList(listId: string, ids: string | string[]) {
 		let parsed = this.parseID(listId);
-		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		let pair = await this.collections[parsed.collection].findOne({ key: listId }, { fields: { _id: 1, list: 1 } });
 		if (pair && !pair.list) {
 			throw new Error('Requested object is not a list');
 		}
 
 		if (!pair) {
 			pair = await this.collections[parsed.collection].insertOne({
-				key: parsed.key, list: true, value: null, namespaces: listId.split('.').slice(1).map((component: string, index: number, array: string[]): string => {
+				key: listId, list: true, value: null, namespaces: listId.split('.').map((component: string, index: number, array: string[]): string => {
 					return array.slice(0, index).join('.');
 				})
 			});
@@ -178,7 +179,7 @@ export class MongoStorageEngine {
 
 	async isListMember(listId: string, id: string): Promise<boolean> {
 		let parsed = this.parseID(listId);
-		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		let pair = await this.collections[parsed.collection].findOne({ key: listId }, { fields: { _id: 1, list: 1 } });
 		if (!pair) {
 			return false;
 		}
@@ -192,7 +193,7 @@ export class MongoStorageEngine {
 
 	async removeFromList(listId: string, id: string) {
 		let parsed = this.parseID(listId);
-		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		let pair = await this.collections[parsed.collection].findOne({ key: listId }, { fields: { _id: 1, list: 1 } });
 		if (!pair) {
 			return false;
 		}
@@ -221,7 +222,7 @@ export class MongoStorageEngine {
 
 	async getListCount(listId: string): Promise<number> {
 		let parsed = this.parseID(listId);
-		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1 } });
+		let pair = await this.collections[parsed.collection].findOne({ key: listId }, { fields: { _id: 1, list: 1 } });
 		if (!pair) {
 			return 0;
 		}
