@@ -55,14 +55,6 @@ describe("MongoStorageEngine", () => {
     should.exist(storageEngine.db);
   });
 
-  it("should have a KV collection", () => {
-    should.exist(storageEngine.kvCollection);
-  });
-
-  it("should have a list collection", () => {
-    should.exist(storageEngine.listCollection);
-  });
-
   describe("upsert", () => {
     it("should upsert a string", async () => {
       await storageEngine.upsert("test.namespace.string", "string.");
