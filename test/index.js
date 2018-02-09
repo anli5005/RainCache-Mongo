@@ -55,14 +55,6 @@ describe("MongoStorageEngine", () => {
     should.exist(storageEngine.db);
   });
 
-  it("should have a KV collection", () => {
-    should.exist(storageEngine.kvCollection);
-  });
-
-  it("should have a list collection", () => {
-    should.exist(storageEngine.listCollection);
-  });
-
   describe("upsert", () => {
     it("should upsert a string", async () => {
       await storageEngine.upsert("test.namespace.string", "string.");
@@ -94,7 +86,7 @@ describe("MongoStorageEngine", () => {
   describe("filter", () => {
     it("should filter out all strings in namespace test", async () => {
       let values = await storageEngine.filter((value) => {
-        return typeof value !== "string";
+        return typeof value !== "string" && !(value instanceof String);
       }, null, "test");
 
       values.length.should.equal(1);
