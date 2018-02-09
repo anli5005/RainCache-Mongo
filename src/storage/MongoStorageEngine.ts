@@ -45,7 +45,7 @@ export class MongoStorageEngine {
 
 	async upsert(id: string, updateData: any, useHash: boolean) {
 		let parsed = this.parseID(id);
-		let pair = await this.collections[parsed.collection].findOne({ key: parsed.key }, { fields: { _id: 1, list: 1, value: 1 } });
+		let pair = await this.collections[parsed.collection].findOne({ key: id }, { fields: { _id: 1, list: 1, value: 1 } });
 		if (pair) {
 			// Update the data.
 			if (pair.list) {
@@ -56,7 +56,7 @@ export class MongoStorageEngine {
 			this.collections[parsed.collection].updateOne({ _id: pair._id }, { $set: { value: value } });
 		} else {
 			// Insert the data.
-			let toInsert: KeyValuePair = { key: parsed.key, value: updateData, list: false, namespaces: [] };
+			let toInsert: KeyValuePair = { key: id, value: updateData, list: false, namespaces: [] };
 			let namespaces = id.split(".");
 
 			namespaces.slice(1).map((component, index) => {
